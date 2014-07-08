@@ -1,9 +1,9 @@
-/* $Id: chars.c 4453 2009-12-02 03:36:22Z astyanax $ */
+/* $Id: chars.c 4933 2014-05-29 18:30:23Z astyanax $ */
 /**************************************************************************
  *   chars.c                                                              *
  *                                                                        *
- *   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009   *
- *   Free Software Foundation, Inc.                                       *
+ *   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,  *
+ *   2010, 2011, 2013, 2014 Free Software Foundation, Inc.                *
  *   This program is free software; you can redistribute it and/or modify *
  *   it under the terms of the GNU General Public License as published by *
  *   the Free Software Foundation; either version 3, or (at your option)  *
@@ -54,7 +54,19 @@ bool using_utf8(void)
 {
     return use_utf8;
 }
-#endif
+#endif /* ENABLE_UTF8 */
+
+/* Concatenate two allocated strings. */
+char* addstrings(char* str1, size_t len1, char* str2, size_t len2)
+{
+    str1 = charealloc(str1, len1 + len2 + 1);
+    str1[len1] = '\0';
+    strncat(&str1[len1], str2, len2);
+    free(str2);
+
+    return str1;
+}
+
 
 #ifndef HAVE_ISBLANK
 /* This function is equivalent to isblank(). */
@@ -79,12 +91,12 @@ bool is_byte(int c)
     return ((unsigned int)c == (unsigned char)c);
 }
 
-static void mbtowc_reset(void)
+void mbtowc_reset(void)
 {
     IGNORE_CALL_RESULT(mbtowc(NULL, NULL, 0));
 }
 
-static void wctomb_reset(void)
+void wctomb_reset(void)
 {
     IGNORE_CALL_RESULT(wctomb(NULL, 0));
 }
@@ -184,9 +196,8 @@ bool is_punct_mbchar(const char *c)
 #ifdef ENABLE_UTF8
     if (use_utf8) {
 	wchar_t wc;
-	int c_mb_len = mbtowc(&wc, c, MB_CUR_MAX);
 
-	if (c_mb_len < 0) {
+	if (mbtowc(&wc, c, MB_CUR_MAX) < 0) {
 	    mbtowc_reset();
 	    wc = bad_wchar;
 	}
@@ -473,22 +484,18 @@ int parse_mbchar(const char *buf, char *chr, size_t *col)
  * before the one at pos. */
 size_t move_mbleft(const char *buf, size_t pos)
 {
-    size_t pos_prev = pos;
+    size_t before = 0, char_len = 0;
 
     assert(buf != NULL && pos <= strlen(buf));
 
     /* There is no library function to move backward one multibyte
      * character.  Here is the naive, O(pos) way to do it. */
-    while (TRUE) {
-	int buf_mb_len = parse_mbchar(buf + pos - pos_prev, NULL, NULL);
-
-	if (pos_prev <= buf_mb_len)
-	    break;
-
-	pos_prev -= buf_mb_len;
+    while (before < pos) {
+	char_len = parse_mbchar(buf + before, NULL, NULL);
+	before += char_len;
     }
 
-    return pos - pos_prev;
+    return before - char_len;
 }
 
 /* Return the index in buf of the beginning of the multibyte character
@@ -630,7 +637,7 @@ char *mbstrcasestr(const char *haystack, const char *needle)
 	return NULL;
     } else
 #endif
-	return strcasestr(haystack, needle);
+	return (char *) strcasestr(haystack, needle);
 }
 
 #if !defined(NANO_TINY) || !defined(DISABLE_TABCOMP)
@@ -788,9 +795,8 @@ char *mbstrchr(const char *s, const char *c)
 	char *s_mb = charalloc(MB_CUR_MAX);
 	const char *q = s;
 	wchar_t ws, wc;
-	int c_mb_len = mbtowc(&wc, c, MB_CUR_MAX);
 
-	if (c_mb_len < 0) {
+	if (mbtowc(&wc, c, MB_CUR_MAX) < 0) {
 	    mbtowc_reset();
 	    wc = (unsigned char)*c;
 	    bad_c_mb = TRUE;
@@ -820,7 +826,7 @@ char *mbstrchr(const char *s, const char *c)
 	return (char *)q;
     } else
 #endif
-	return strchr(s, *c);
+	return (char *) strchr(s, *c);
 }
 #endif /* !NANO_TINY || !DISABLE_JUSTIFY */
 
@@ -840,7 +846,7 @@ char *mbstrpbrk(const char *s, const char *accept)
 	return NULL;
     } else
 #endif
-	return strpbrk(s, accept);
+	return (char *) strpbrk(s, accept);
 }
 
 /* This function is equivalent to strpbrk(), except in that it scans the
@@ -893,7 +899,7 @@ char *mbrevstrpbrk(const char *s, const char *accept, const char
 }
 #endif /* !NANO_TINY */
 
-#if defined(ENABLE_NANORC) && (!defined(NANO_TINY) || !defined(DISABLE_JUSTIFY))
+#if !defined(DISABLE_NANORC) && (!defined(NANO_TINY) || !defined(DISABLE_JUSTIFY))
 /* Return TRUE if the string s contains one or more blank characters,
  * and FALSE otherwise. */
 bool has_blank_chars(const char *s)
@@ -935,7 +941,7 @@ bool has_blank_mbchars(const char *s)
 #endif
 	return has_blank_chars(s);
 }
-#endif /* ENABLE_NANORC && (!NANO_TINY || !DISABLE_JUSTIFY) */
+#endif /* !DISABLE_NANORC && (!NANO_TINY || !DISABLE_JUSTIFY) */
 
 #ifdef ENABLE_UTF8
 /* Return TRUE if wc is valid Unicode, and FALSE otherwise. */
@@ -947,7 +953,7 @@ bool is_valid_unicode(wchar_t wc)
 }
 #endif
 
-#ifdef ENABLE_NANORC
+#ifndef DISABLE_NANORC
 /* Check if the string s is a valid multibyte string.  Return TRUE if it
  * is, and FALSE otherwise. */
 bool is_valid_mbstring(const char *s)
@@ -960,4 +966,4 @@ bool is_valid_mbstring(const char *s)
 #endif
 	TRUE;
 }
-#endif /* ENABLE_NANORC */
+#endif /* !DISABLE_NANORC */

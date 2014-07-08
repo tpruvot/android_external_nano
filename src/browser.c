@@ -1,9 +1,9 @@
-/* $Id: browser.c 4461 2009-12-09 17:09:37Z astyanax $ */
+/* $Id: browser.c 5051 2014-07-02 09:29:05Z bens $ */
 /**************************************************************************
  *   browser.c                                                            *
  *                                                                        *
- *   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009   *
- *   Free Software Foundation, Inc.                                       *
+ *   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009,  *
+ *   2010, 2011, 2013, 2014 Free Software Foundation, Inc.                *
  *   This program is free software; you can redistribute it and/or modify *
  *   it under the terms of the GNU General Public License as published by *
  *   the Free Software Foundation; either version 3, or (at your option)  *
@@ -50,9 +50,7 @@ char *do_browser(char *path, DIR *dir)
 {
     char *retval = NULL;
     int kbinput;
-    bool meta_key, func_key, old_const_update = ISSET(CONST_UPDATE);
-    bool abort = FALSE;
-	/* Whether we should abort the file browser. */
+    bool old_const_update = ISSET(CONST_UPDATE);
     char *prev_dir = NULL;
 	/* The directory we were in, if any, before backing up via
 	 * browsing to "..". */
@@ -60,14 +58,12 @@ char *do_browser(char *path, DIR *dir)
 	/* The last answer the user typed at the statusbar prompt. */
     size_t old_selected;
 	/* The selected file we had before the current selected file. */
-    const sc *s;
-    const subnfunc *f;
+    functionptrtype func;
+	/* The function of the key the user typed in. */
 
     curs_set(0);
     blank_statusbar();
-#if !defined(DISABLE_HELP) || !defined(DISABLE_MOUSE)
     currmenu = MBROWSER;
-#endif
     bottombars(MBROWSER);
     wnoutrefresh(bottomwin);
 
@@ -108,7 +104,7 @@ char *do_browser(char *path, DIR *dir)
 
     titlebar(path);
 
-    while (!abort) {
+    while (TRUE) {
 	struct stat st;
 	int i;
 	size_t fileline = selected / width;
@@ -124,239 +120,220 @@ char *do_browser(char *path, DIR *dir)
 
 	old_selected = selected;
 
-	kbinput = get_kbinput(edit, &meta_key, &func_key);
+	kbinput = get_kbinput(edit);
 
 #ifndef DISABLE_MOUSE
-        if (kbinput == KEY_MOUSE) {
+	if (kbinput == KEY_MOUSE) {
+	    int mouse_x, mouse_y;
 
-		    int mouse_x, mouse_y;
-
-		    /* We can click on the edit window to select a
-		     * filename. */
-		    if (get_mouseinput(&mouse_x, &mouse_y, TRUE) == 0 &&
-			wmouse_trafo(edit, &mouse_y, &mouse_x, FALSE)) {
-			/* longest is the width of each column.  There
-			 * are two spaces between each column. */
-			selected = (fileline / editwinrows) *
+	    /* We can click on the edit window to select a
+	     * filename. */
+	    if (get_mouseinput(&mouse_x, &mouse_y, TRUE) == 0 &&
+		wmouse_trafo(edit, &mouse_y, &mouse_x, FALSE)) {
+		/* longest is the width of each column.  There
+		 * are two spaces between each column. */
+		selected = (fileline / editwinrows) *
 				(editwinrows * width) + (mouse_y *
 				width) + (mouse_x / (longest + 2));
 
-			/* If they clicked beyond the end of a row,
-			 * select the filename at the end of that
-			 * row. */
-			if (mouse_x > width * (longest + 2))
-			    selected--;
+		/* If they clicked beyond the end of a row,
+		 * select the filename at the end of that
+		 * row. */
+		if (mouse_x > width * (longest + 2))
+		    selected--;
 
-			/* If we're off the screen, select the last
-			 * filename. */
-			if (selected > filelist_len - 1)
-			    selected = filelist_len - 1;
+		/* If we're off the screen, select the last
+		 * filename. */
+		if (selected > filelist_len - 1)
+		    selected = filelist_len - 1;
 
-			/* If we selected the same filename as last
-			 * time, put back the Enter key so that it's
-			 * read in. */
-			if (old_selected == selected)
-			    unget_kbinput(sc_seq_or(DO_ENTER, 0), FALSE, FALSE);
-		    }
+		/* If we selected the same filename as last
+		 * time, put back the Enter key so that it's
+		 * read in. */
+		if (old_selected == selected)
+		    unget_kbinput(sc_seq_or(do_enter_void, 0), FALSE, FALSE);
+	    }
 	}
 #endif /* !DISABLE_MOUSE */
 
-	parse_browser_input(&kbinput, &meta_key, &func_key);
-        s = get_shortcut(MBROWSER, &kbinput, &meta_key, &func_key);
-        if (!s)
-            continue;
-        f = sctofunc((sc *) s);
-        if (!f)
-            break;
+	func = parse_browser_input(&kbinput);
 
-	if (f->scfunc == TOTAL_REFRESH) {
-		total_redraw();
-	} else if (f->scfunc == DO_HELP_VOID) {
+	if (func == total_refresh) {
+	    total_redraw();
+	} else if (func == do_help_void) {
 #ifndef DISABLE_HELP
-	    do_browser_help();
+	    do_help_void();
 	    curs_set(0);
 #else
-		nano_disabled_msg();
+	    nano_disabled_msg();
 #endif
+	} else if (func == do_search) {
 	    /* Search for a filename. */
-	} else if (f->scfunc == DO_SEARCH) {
-		curs_set(1);
-		do_filesearch();
-		curs_set(0);
+	    curs_set(1);
+	    do_filesearch();
+	    curs_set(0);
+	} else if (func == do_research) {
 	    /* Search for another filename. */
-	} else if (f->scfunc == DO_RESEARCH) {
-		do_fileresearch();
-	} else if (f->scfunc == DO_PAGE_UP) {
-		if (selected >= (editwinrows + fileline % editwinrows) *
-			width)
-		    selected -= (editwinrows + fileline % editwinrows) *
-			width;
-		else
-		    selected = 0;
-	} else if (f->scfunc == DO_PAGE_DOWN) {
-		selected += (editwinrows - fileline % editwinrows) *
-			width;
-		if (selected > filelist_len - 1)
-		    selected = filelist_len - 1;
-	} else if (f->scfunc ==  FIRST_FILE_MSG) {
-		if (meta_key)
-		    selected = 0;
-	} else if (f->scfunc ==  LAST_FILE_MSG) {
-		if (meta_key)
-		    selected = filelist_len - 1;
+	    do_fileresearch();
+	} else if (func == do_page_up) {
+	    if (selected >= (editwinrows + fileline % editwinrows) * width)
+		selected -= (editwinrows + fileline % editwinrows) * width;
+	    else
+		selected = 0;
+	} else if (func == do_page_down) {
+	    selected += (editwinrows - fileline % editwinrows) * width;
+	    if (selected > filelist_len - 1)
+		selected = filelist_len - 1;
+	} else if (func == do_first_file) {
+	    selected = 0;
+	} else if (func == do_last_file) {
+	    selected = filelist_len - 1;
+	} else if (func == goto_dir_void) {
 	    /* Go to a specific directory. */
-	} else if (f->scfunc ==  GOTO_DIR_MSG) {
-		curs_set(1);
-
-		i = do_prompt(TRUE,
+	    curs_set(1);
+	    i = do_prompt(TRUE,
 #ifndef DISABLE_TABCOMP
 			FALSE,
 #endif
 			MGOTODIR, ans,
-			&meta_key, &func_key,
-#ifndef NANO_TINY
+#ifndef DISABLE_HISTORIES
 			NULL,
 #endif
-			browser_refresh, N_("Go To Directory"));
+			/* TRANSLATORS: This is a prompt. */
+			browser_refresh, _("Go To Directory"));
 
-		curs_set(0);
-#if !defined(DISABLE_HELP) || !defined(DISABLE_MOUSE)
-		currmenu = MBROWSER;
-#endif
-		bottombars(MBROWSER);
+	    curs_set(0);
+	    currmenu = MBROWSER;
+	    bottombars(MBROWSER);
 
-		/* If the directory begins with a newline (i.e. an
-		 * encoded null), treat it as though it's blank. */
-		if (i < 0 || *answer == '\n') {
-		    /* We canceled.  Indicate that on the statusbar, and
-		     * blank out ans, since we're done with it. */
-		    statusbar(_("Cancelled"));
-		    ans = mallocstrcpy(ans, "");
-		    continue;
-		} else if (i != 0) {
-		    /* Put back the "Go to Directory" key and save
-		     * answer in ans, so that the file list is displayed
-		     * again, the prompt is displayed again, and what we
-		     * typed before at the prompt is displayed again. */
-		    unget_kbinput(sc_seq_or(DO_GOTOLINECOLUMN_VOID, 0), FALSE, FALSE);
-		    ans = mallocstrcpy(ans, answer);
-		    continue;
-		}
-
-		/* We have a directory.  Blank out ans, since we're done
-		 * with it. */
+	    /* If the directory begins with a newline (i.e. an
+	     * encoded null), treat it as though it's blank. */
+	    if (i < 0 || *answer == '\n') {
+		/* We canceled.  Indicate that on the statusbar, and
+		* blank out ans, since we're done with it. */
+		statusbar(_("Cancelled"));
 		ans = mallocstrcpy(ans, "");
+		continue;
+	    } else if (i != 0) {
+		/* Put back the "Go to Directory" key and save
+		 * answer in ans, so that the file list is displayed
+		 * again, the prompt is displayed again, and what we
+		 * typed before at the prompt is displayed again. */
+		unget_kbinput(sc_seq_or(do_gotolinecolumn_void, 0), FALSE, FALSE);
+		ans = mallocstrcpy(ans, answer);
+		continue;
+	    }
 
-		/* Convert newlines to nulls, just before we go to the
-		 * directory. */
-		sunder(answer);
-		align(&answer);
+	    /* We have a directory.  Blank out ans, since we're done
+	     * with it. */
+	    ans = mallocstrcpy(ans, "");
 
-		new_path = real_dir_from_tilde(answer);
+	    /* Convert newlines to nulls, just before we go to the
+	     * directory. */
+	    sunder(answer);
+	    align(&answer);
 
-		if (new_path[0] != '/') {
-		    new_path = charealloc(new_path, strlen(path) +
-			strlen(answer) + 1);
-		    sprintf(new_path, "%s%s", path, answer);
-		}
+	    new_path = real_dir_from_tilde(answer);
 
-#ifndef DISABLE_OPERATINGDIR
-		if (check_operating_dir(new_path, FALSE)) {
-		    statusbar(
-			_("Can't go outside of %s in restricted mode"),
-			operating_dir);
-		    free(new_path);
-		    continue;
-		}
-#endif
-
-		dir = opendir(new_path);
-		if (dir == NULL) {
-		    /* We can't open this directory for some reason.
-		     * Complain. */
-		    statusbar(_("Error reading %s: %s"), answer,
-			strerror(errno));
-		    beep();
-		    free(new_path);
-		    continue;
-		}
-
-		/* Start over again with the new path value. */
-		free(path);
-		path = new_path;
-		goto change_browser_directory;
-	} else if (f->scfunc == DO_UP_VOID) {
-		if (selected >= width)
-		    selected -= width;
-	} else if (f->scfunc == DO_LEFT) {
-		if (selected > 0)
-		    selected--;
-	} else if (f->scfunc == DO_DOWN_VOID) {
-		if (selected + width <= filelist_len - 1)
-		    selected += width;
-	} else if (f->scfunc == DO_RIGHT) {
-		if (selected < filelist_len - 1)
-		    selected++;
-	} else if (f->scfunc == DO_ENTER) {
-		/* We can't move up from "/". */
-		if (strcmp(filelist[selected], "/..") == 0) {
-		    statusbar(_("Can't move up a directory"));
-		    beep();
-		    continue;
-		}
+	    if (new_path[0] != '/') {
+		new_path = charealloc(new_path, strlen(path) +
+				strlen(answer) + 1);
+		sprintf(new_path, "%s%s", path, answer);
+	    }
 
 #ifndef DISABLE_OPERATINGDIR
-		/* Note: The selected file can be outside the operating
-		 * directory if it's ".." or if it's a symlink to a
-		 * directory outside the operating directory. */
-		if (check_operating_dir(filelist[selected], FALSE)) {
-		    statusbar(
-			_("Can't go outside of %s in restricted mode"),
-			operating_dir);
-		    beep();
-		    continue;
-		}
+	    if (check_operating_dir(new_path, FALSE)) {
+		statusbar(_("Can't go outside of %s in restricted mode"),
+				operating_dir);
+		free(new_path);
+		continue;
+	    }
 #endif
 
-		if (stat(filelist[selected], &st) == -1) {
-		    /* We can't open this file for some reason.
-		     * Complain. */
-		    statusbar(_("Error reading %s: %s"),
-			filelist[selected], strerror(errno));
-		    beep();
-		    continue;
-		}
+	    dir = opendir(new_path);
+	    if (dir == NULL) {
+		/* We can't open this directory for some reason.
+		* Complain. */
+		statusbar(_("Error reading %s: %s"), answer,
+				strerror(errno));
+		beep();
+		free(new_path);
+		continue;
+	    }
 
-		/* If we've successfully opened a file, we're done, so
+	    /* Start over again with the new path value. */
+	    free(path);
+	    path = new_path;
+	    goto change_browser_directory;
+	} else if (func == do_up_void) {
+	    if (selected >= width)
+		selected -= width;
+	} else if (func == do_left) {
+	    if (selected > 0)
+		selected--;
+	} else if (func == do_down_void) {
+	    if (selected + width <= filelist_len - 1)
+		selected += width;
+	} else if (func == do_right) {
+	    if (selected < filelist_len - 1)
+		selected++;
+	} else if (func == do_enter_void) {
+	    /* We can't move up from "/". */
+	    if (strcmp(filelist[selected], "/..") == 0) {
+		statusbar(_("Can't move up a directory"));
+		beep();
+		continue;
+	    }
+
+#ifndef DISABLE_OPERATINGDIR
+	    /* Note: The selected file can be outside the operating
+	     * directory if it's ".." or if it's a symlink to a
+	     * directory outside the operating directory. */
+	    if (check_operating_dir(filelist[selected], FALSE)) {
+		statusbar(_("Can't go outside of %s in restricted mode"),
+				operating_dir);
+		beep();
+		continue;
+	    }
+#endif
+
+	    if (stat(filelist[selected], &st) == -1) {
+		/* We can't open this file for some reason.
+		 * Complain. */
+		 statusbar(_("Error reading %s: %s"),
+				filelist[selected], strerror(errno));
+		 beep();
+		 continue;
+	    }
+
+	    if (!S_ISDIR(st.st_mode)) {
+		/* We've successfully opened a file, we're done, so
 		 * get out. */
-		if (!S_ISDIR(st.st_mode)) {
-		    retval = mallocstrcpy(NULL, filelist[selected]);
-		    abort = TRUE;
-		    continue;
-		/* If we've successfully opened a directory, and it's
-		 * "..", save the current directory in prev_dir, so that
-		 * we can select it later. */
-		} else if (strcmp(tail(filelist[selected]), "..") == 0)
-		    prev_dir = mallocstrcpy(NULL,
-			striponedir(filelist[selected]));
+		retval = mallocstrcpy(NULL, filelist[selected]);
+		break;
+	    } else if (strcmp(tail(filelist[selected]), "..") == 0)
+		/* We've successfully opened the parent directory,
+		 * save the current directory in prev_dir, so that
+		 * we can easily return to it by hitting Enter. */
+		prev_dir = mallocstrcpy(NULL, striponedir(filelist[selected]));
 
-		dir = opendir(filelist[selected]);
-		if (dir == NULL) {
-		    /* We can't open this directory for some reason.
-		     * Complain. */
-		    statusbar(_("Error reading %s: %s"),
-			filelist[selected], strerror(errno));
-		    beep();
-		    continue;
-		}
+	    dir = opendir(filelist[selected]);
+	    if (dir == NULL) {
+		/* We can't open this directory for some reason.
+		 * Complain. */
+		statusbar(_("Error reading %s: %s"),
+				filelist[selected], strerror(errno));
+		beep();
+		continue;
+	    }
 
-		path = mallocstrcpy(path, filelist[selected]);
+	    path = mallocstrcpy(path, filelist[selected]);
 
-		/* Start over again with the new path value. */
-		goto change_browser_directory;
-	    /* Abort the file browser. */
-	} else if (f->scfunc == DO_EXIT) {
-		abort = TRUE;
+	    /* Start over again with the new path value. */
+	    goto change_browser_directory;
+	} else if (func == do_exit) {
+	    /* Exit from the file browser. */
+	    break;
 	}
     }
     titlebar(NULL);
@@ -460,7 +437,7 @@ void browser_init(const char *path, DIR *dir)
 
 	/* Don't show the "." entry. */
 	if (strcmp(nextdir->d_name, ".") == 0)
-	   continue;
+	    continue;
 
 	d_len = strlenpt(nextdir->d_name);
 	if (d_len > longest)
@@ -487,7 +464,7 @@ void browser_init(const char *path, DIR *dir)
     while ((nextdir = readdir(dir)) != NULL && i < filelist_len) {
 	/* Don't show the "." entry. */
 	if (strcmp(nextdir->d_name, ".") == 0)
-	   continue;
+	    continue;
 
 	filelist[i] = charalloc(path_len + strlen(nextdir->d_name) + 1);
 	sprintf(filelist[i], "%s%s", path, nextdir->d_name);
@@ -539,48 +516,33 @@ void browser_init(const char *path, DIR *dir)
 	width = longest;
 }
 
-/* Determine the shortcut key corresponding to the values of kbinput
- * (the key itself), meta_key (whether the key is a meta sequence), and
- * func_key (whether the key is a function key), if any.  In the
- * process, convert certain non-shortcut keys into their corresponding
- * shortcut keys. */
-void parse_browser_input(int *kbinput, bool *meta_key, bool *func_key)
+/* Return the function that is bound to the given key, accepting certain
+ * plain characters too, for compatibility with Pico. */
+functionptrtype parse_browser_input(int *kbinput)
 {
-    get_shortcut(MBROWSER, kbinput, meta_key, func_key);
-
-    /* Pico compatibility. */
-    if (!*meta_key) {
+    if (!meta_key) {
 	switch (*kbinput) {
 	    case ' ':
-		*kbinput = sc_seq_or(DO_PAGE_DOWN, 0);
-		break;
+		return do_page_down;
 	    case '-':
-		*kbinput = sc_seq_or(DO_PAGE_UP, 0);
-		break;
+		return do_page_up;
 	    case '?':
-#ifndef DISABLE_HELP
-		*kbinput = sc_seq_or(DO_HELP_VOID, 0);
-#endif
-		break;
-	    /* Cancel equivalent to Exit here. */
+		return do_help_void;
 	    case 'E':
 	    case 'e':
-		*kbinput = sc_seq_or(DO_EXIT, 0);
-		break;
+		return do_exit;
 	    case 'G':
 	    case 'g':
-		*kbinput = sc_seq_or(GOTO_DIR_MSG, 0);
-		break;
+		return goto_dir_void;
 	    case 'S':
 	    case 's':
-		*kbinput = sc_seq_or(DO_ENTER, 0);
-		break;
+		return do_enter_void;
 	    case 'W':
 	    case 'w':
-		*kbinput = sc_seq_or(DO_SEARCH, 0);
-		break;
+		return do_search;
 	}
     }
+    return func_from_key(kbinput);
 }
 
 /* Set width to the number of files that we can display per line, if
@@ -635,7 +597,7 @@ void browser_refresh(void)
 	/* Start highlighting the currently selected file or
 	 * directory. */
 	if (i == selected)
-	    wattron(edit, reverse_attr);
+	    wattron(edit, hilite_attribute);
 
 	blank_line(edit, line, col, longest);
 
@@ -710,7 +672,7 @@ void browser_refresh(void)
 	/* Finish highlighting the currently selected file or
 	 * directory. */
 	if (i == selected)
-	    wattroff(edit, reverse_attr);
+	    wattroff(edit, hilite_attribute);
 
 	free(foo);
 
@@ -760,8 +722,6 @@ int filesearch_init(void)
 {
     int i = 0;
     char *buf;
-    bool meta_key, func_key;
-    const sc *s;
     static char *backupstring = NULL;
 	/* The search string we'll be using. */
 
@@ -794,29 +754,10 @@ int filesearch_init(void)
 	TRUE,
 #endif
 	MWHEREISFILE, backupstring,
-	&meta_key, &func_key, 
-#ifndef NANO_TINY
+#ifndef DISABLE_HISTORIES
 	&search_history,
 #endif
-	browser_refresh, "%s%s%s%s%s%s", _("Search"),
-#ifndef NANO_TINY
-	/* This string is just a modifier for the search prompt; no
-	 * grammar is implied. */
-	ISSET(CASE_SENSITIVE) ? _(" [Case Sensitive]") :
-#endif
-	"",
-#ifdef HAVE_REGEX_H
-	/* This string is just a modifier for the search prompt; no
-	 * grammar is implied. */
-	ISSET(USE_REGEXP) ? _(" [Regexp]") :
-#endif
-	"",
-#ifndef NANO_TINY
-	/* This string is just a modifier for the search prompt; no
-	 * grammar is implied. */
-	ISSET(BACKWARDS_SEARCH) ? _(" [Backwards]") :
-#endif
-	"", "", buf);
+	browser_refresh, "%s%s", _("Search"), buf);
 
     /* Release buf now that we don't need it anymore. */
     free(buf);
@@ -829,36 +770,6 @@ int filesearch_init(void)
 	*answer == '\0')) {
 	statusbar(_("Cancelled"));
 	return -1;
-    } else {
-        s = get_shortcut(MBROWSER, &i, &meta_key, &func_key);
-	if (i == -2 || i == 0) {
-#ifdef HAVE_REGEX_H
-		/* Use last_search if answer is an empty string, or
-		 * answer if it isn't. */
-		if (ISSET(USE_REGEXP) && !regexp_init((i == -2) ?
-			last_search : answer))
-		    return -1;
-#endif
-	} else
-#ifndef NANO_TINY
-	if (s && s->scfunc == CASE_SENS_MSG) {
-		TOGGLE(CASE_SENSITIVE);
-		backupstring = mallocstrcpy(backupstring, answer);
-		return 1;
-	} else if (s && s->scfunc == BACKWARDS_MSG) {
-		TOGGLE(BACKWARDS_SEARCH);
-		backupstring = mallocstrcpy(backupstring, answer);
-		return 1;
-	} else
-#endif
-#ifdef HAVE_REGEX_H
-	if (s && s->scfunc ==  REGEXP_MSG) {
-		TOGGLE(USE_REGEXP);
-		backupstring = mallocstrcpy(backupstring, answer);
-		return 1;
-	} else
-#endif
-	    return -1;
     }
 
     return 0;
@@ -877,11 +788,6 @@ bool findnextfile(bool no_sameline, size_t begin, const char *needle)
 	/* The filename we display, minus the path. */
     const char *rev_start = filetail, *found = NULL;
 
-#ifndef NANO_TINY
-    if (ISSET(BACKWARDS_SEARCH))
-	rev_start += strlen(rev_start);
-#endif
-
     /* Look for needle in the current filename we're searching. */
     while (TRUE) {
 	found = strstrwrapper(filetail, needle, rev_start);
@@ -898,27 +804,14 @@ bool findnextfile(bool no_sameline, size_t begin, const char *needle)
 	    return FALSE;
 	}
 
-	/* Move to the previous or next filename in the list.  If we've
-	 * reached the start or end of the list, wrap around. */
-#ifndef NANO_TINY
-	if (ISSET(BACKWARDS_SEARCH)) {
-	    if (currselected > 0)
-		currselected--;
-	    else {
-		currselected = filelist_len - 1;
-		statusbar(_("Search Wrapped"));
-	    }
-	} else {
-#endif
-	    if (currselected < filelist_len - 1)
-		currselected++;
-	    else {
-		currselected = 0;
-		statusbar(_("Search Wrapped"));
-	    }
-#ifndef NANO_TINY
+	/* Move to the next filename in the list.  If we've reached the
+	 * end of the list, wrap around. */
+	if (currselected < filelist_len - 1)
+	    currselected++;
+	else {
+	    currselected = 0;
+	    statusbar(_("Search Wrapped"));
 	}
-#endif
 
 	/* We've reached the original starting file. */
 	if (currselected == begin)
@@ -927,10 +820,6 @@ bool findnextfile(bool no_sameline, size_t begin, const char *needle)
 	filetail = tail(filelist[currselected]);
 
 	rev_start = filetail;
-#ifndef NANO_TINY
-	if (ISSET(BACKWARDS_SEARCH))
-	    rev_start += strlen(rev_start);
-#endif
     }
 
     /* We've definitely found something. */
@@ -947,37 +836,28 @@ void findnextfile_wrap_reset(void)
 }
 
 /* Abort the current filename search.  Clean up by setting the current
- * shortcut list to the browser shortcut list, displaying it, and
- * decompiling the compiled regular expression we used in the last
- * search, if any. */
+ * shortcut list to the browser shortcut list, and displaying it. */
 void filesearch_abort(void)
 {
     currmenu = MBROWSER;
     bottombars(MBROWSER);
-#ifdef HAVE_REGEX_H
-    regexp_cleanup();
-#endif
 }
 
 /* Search for a filename. */
 void do_filesearch(void)
 {
     size_t begin = selected;
-    int i;
     bool didfind;
 
-    i = filesearch_init();
-    if (i == -1)	/* Cancel, blank search string, or regcomp()
-			 * failed. */
-	filesearch_abort();
-#if !defined(NANO_TINY) || defined(HAVE_REGEX_H)
-    else if (i == 1)	/* Case Sensitive, Backwards, or Regexp search
-			 * toggle. */
-	do_filesearch();
-#endif
+    UNSET(CASE_SENSITIVE);
+    UNSET(USE_REGEXP);
+    UNSET(BACKWARDS_SEARCH);
 
-    if (i != 0)
+    if (filesearch_init() != 0) {
+	/* Cancelled or a blank search string. */
+	filesearch_abort();
 	return;
+    }
 
     /* If answer is now "", copy last_search into answer. */
     if (*answer == '\0')
@@ -985,7 +865,7 @@ void do_filesearch(void)
     else
 	last_search = mallocstrcpy(last_search, answer);
 
-#ifndef NANO_TINY
+#ifndef DISABLE_HISTORIES
     /* If answer is not "", add this search string to the search history
      * list. */
     if (answer[0] != '\0')
@@ -1018,12 +898,6 @@ void do_fileresearch(void)
     search_init_globals();
 
     if (last_search[0] != '\0') {
-#ifdef HAVE_REGEX_H
-	/* Since answer is "", use last_search! */
-	if (ISSET(USE_REGEXP) && !regexp_init(last_search))
-	    return;
-#endif
-
 	findnextfile_wrap_reset();
 	didfind = findnextfile(FALSE, begin, answer);
 
@@ -1070,7 +944,7 @@ char *striponedir(const char *path)
     tmp = strrchr(retval, '/');
 
     if (tmp != NULL)
- 	null_at(&retval, tmp - retval);
+	null_at(&retval, tmp - retval);
 
     return retval;
 }

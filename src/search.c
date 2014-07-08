@@ -1,9 +1,9 @@
-/* $Id: search.c 4472 2010-01-05 23:35:50Z astyanax $ */
+/* $Id: search.c 5052 2014-07-02 19:12:38Z bens $ */
 /**************************************************************************
  *   search.c                                                             *
  *                                                                        *
  *   Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007,  *
- *   2008, 2009 Free Software Foundation, Inc.                            *
+ *   2008, 2009, 2010, 2011, 2013, 2014 Free Software Foundation, Inc.    *
  *   This program is free software; you can redistribute it and/or modify *
  *   it under the terms of the GNU General Public License as published by *
  *   the Free Software Foundation; either version 3, or (at your option)  *
@@ -32,7 +32,7 @@
 
 static bool search_last_line = FALSE;
 	/* Have we gone past the last line while searching? */
-#if !defined(NANO_TINY) && defined(ENABLE_NANORC)
+#ifndef DISABLE_HISTORIES
 static bool history_changed = FALSE;
 	/* Have any of the history lists changed? */
 #endif
@@ -137,9 +137,6 @@ int search_init(bool replacing, bool use_answer)
 {
     int i = 0;
     char *buf;
-    sc *s;
-    char func = 0;
-    bool meta_key = FALSE, func_key = FALSE;
     static char *backupstring = NULL;
 	/* The search string we'll be using. */
 
@@ -178,30 +175,26 @@ int search_init(bool replacing, bool use_answer)
 	TRUE,
 #endif
 	replacing ? MREPLACE : MWHEREIS, backupstring,
-	&meta_key, &func_key,
-#ifndef NANO_TINY
+#ifndef DISABLE_HISTORIES
 	&search_history,
 #endif
+	/* TRANSLATORS: This is the main search prompt. */
 	edit_refresh, "%s%s%s%s%s%s", _("Search"),
 #ifndef NANO_TINY
-	/* TRANSLATORS: This string is just a modifier for the search
-	 * prompt; no grammar is implied. */
+	/* TRANSLATORS: The next three strings are modifiers of the search prompt. */
 	ISSET(CASE_SENSITIVE) ? _(" [Case Sensitive]") :
 #endif
 	"",
 #ifdef HAVE_REGEX_H
-	/* TRANSLATORS: This string is just a modifier for the search
-	 * prompt; no grammar is implied. */
 	ISSET(USE_REGEXP) ? _(" [Regexp]") :
 #endif
 	"",
 #ifndef NANO_TINY
-	/* TRANSLATORS: This string is just a modifier for the search
-	 * prompt; no grammar is implied. */
 	ISSET(BACKWARDS_SEARCH) ? _(" [Backwards]") :
 #endif
 	"", replacing ?
 #ifndef NANO_TINY
+	/* TRANSLATORS: The next two strings are modifiers of the search prompt. */
 	openfile->mark_set ? _(" (to replace) in selection") :
 #endif
 	_(" (to replace)") : "", buf);
@@ -220,11 +213,7 @@ int search_init(bool replacing, bool use_answer)
 	statusbar(_("Cancelled"));
 	return -1;
     } else {
-	for  (s = sclist; s != NULL; s = s->next)
-	    if ((s->menu & currmenu) && i == s->seq) {
-	        func = s->scfunc;
-	  	break;
-	    }
+	functionptrtype func = func_from_key(&i);
 
 	if (i == -2 || i == 0 ) {
 #ifdef HAVE_REGEX_H
@@ -236,26 +225,25 @@ int search_init(bool replacing, bool use_answer)
 #endif
 		;
 #ifndef NANO_TINY
-	} else if (func == CASE_SENS_MSG) {
+	} else if (func == case_sens_void) {
 		TOGGLE(CASE_SENSITIVE);
 		backupstring = mallocstrcpy(backupstring, answer);
 		return 1;
-	} else if (func == BACKWARDS_MSG) {
+	} else if (func == backwards_void) {
 		TOGGLE(BACKWARDS_SEARCH);
 		backupstring = mallocstrcpy(backupstring, answer);
 		return 1;
 #endif
 #ifdef HAVE_REGEX_H
-	} else if (func == REGEXP_MSG) {
+	} else if (func == regexp_void) {
 		TOGGLE(USE_REGEXP);
 		backupstring = mallocstrcpy(backupstring, answer);
 		return 1;
 #endif
-	} else if (func == DO_REPLACE || 
-	  func == NO_REPLACE_MSG) {
+	} else if (func == do_replace || func == flip_replace_void) {
 		backupstring = mallocstrcpy(backupstring, answer);
 		return -2;	/* Call the opposite search function. */
-	} else if (func == DO_GOTOLINECOLUMN_VOID) {
+	} else if (func == do_gotolinecolumn_void) {
 		do_gotolinecolumn(openfile->current->lineno,
 			openfile->placewewant + 1, TRUE, TRUE, FALSE,
 			TRUE);
@@ -289,7 +277,6 @@ bool findnextstr(
     ssize_t current_y_find = openfile->current_y;
     filestruct *fileptr = openfile->current;
     const char *rev_start = fileptr->data, *found = NULL;
-    const subnfunc *f;
     time_t lastkbcheck = time(NULL);
 
     /* rev_start might end up 1 character before the start or after the
@@ -307,10 +294,12 @@ bool findnextstr(
     /* Look for needle in the current line we're searching. */
     enable_nodelay();
     while (TRUE) {
-        if (time(NULL) - lastkbcheck > 1) {
-            lastkbcheck = time(NULL);
-	    f = getfuncfromkey(edit);
-            if (f && f->scfunc == CANCEL_MSG) {
+	if (time(NULL) - lastkbcheck > 1) {
+	    int input = parse_kbinput(edit);
+
+	    lastkbcheck = time(NULL);
+
+	    if (input && func_from_key(&input) == do_cancel) {
 		statusbar(_("Cancelled"));
 		return FALSE;
 	    }
@@ -361,7 +350,7 @@ bool findnextstr(
 	/* We've finished processing the file, so get out. */
 	if (search_last_line) {
 	    not_found_msg(needle);
-            disable_nodelay();
+	    disable_nodelay();
 	    return FALSE;
 	}
 
@@ -477,7 +466,7 @@ void do_search(void)
     else
 	last_search = mallocstrcpy(last_search, answer);
 
-#ifndef NANO_TINY
+#ifndef DISABLE_HISTORIES
     /* If answer is not "", add this search string to the search history
      * list. */
     if (answer[0] != '\0')
@@ -525,7 +514,7 @@ void do_search(void)
     search_replace_abort();
 }
 
-#ifndef NANO_TINY
+#if !defined(NANO_TINY) || !defined(DISABLE_BROWSER)
 /* Search for the last string without prompting. */
 void do_research(void)
 {
@@ -573,20 +562,20 @@ void do_research(void)
 			openfile->current_x && !didfind)
 		    statusbar(_("This is the only occurrence"));
 	    } else {
-#endif
+#endif /* HAVE_REGEX_H */
 		statusbar(_("This is the only occurrence"));
 #ifdef HAVE_REGEX_H
 	    }
 #endif
 	}
     } else
-        statusbar(_("No current search pattern"));
+	statusbar(_("No current search pattern"));
 
     openfile->placewewant = xplustabs();
     edit_redraw(fileptr, pww_save);
     search_replace_abort();
 }
-#endif
+#endif /* !NANO_TINY */
 
 #ifdef HAVE_REGEX_H
 int replace_regexp(char *string, bool create)
@@ -636,7 +625,7 @@ int replace_regexp(char *string, bool create)
 
     return new_line_size;
 }
-#endif
+#endif /* HAVE_REGEX_H */
 
 char *replace_line(const char *needle)
 {
@@ -719,12 +708,12 @@ ssize_t do_replace_loop(
 	filepart = partition_filestruct(top, top_x, bot, bot_x);
 	openfile->edittop = openfile->fileage;
 	openfile->mark_set = FALSE;
-#ifdef ENABLE_COLOR
+#ifndef DISABLE_COLOR
 	reset_multis(openfile->current, TRUE);
 #endif
 	edit_refresh();
     }
-#endif
+#endif /* !NANO_TINY */
 
     if (canceled != NULL)
 	*canceled = FALSE;
@@ -781,6 +770,7 @@ ssize_t do_replace_loop(
 
 	    do_replace_highlight(TRUE, exp_word);
 
+	    /* TRANSLATORS: This is a prompt. */
 	    i = do_yesno_prompt(TRUE, _("Replace this instance?"));
 
 	    do_replace_highlight(FALSE, exp_word);
@@ -866,12 +856,12 @@ ssize_t do_replace_loop(
 	    free(openfile->current->data);
 	    openfile->current->data = copy;
 
-#ifdef ENABLE_COLOR
+#ifndef DISABLE_COLOR
 	reset_multis(openfile->current, TRUE);
 #endif
 	edit_refresh();
 	    if (!replaceall) {
-#ifdef ENABLE_COLOR
+#ifndef DISABLE_COLOR
 		/* If color syntaxes are available and turned on, we
 		 * need to call edit_refresh(). */
 		if (openfile->colorstrings != NULL &&
@@ -912,7 +902,6 @@ void do_replace(void)
 {
     filestruct *edittop_save, *begin;
     size_t begin_x, pww_save;
-    bool meta_key = FALSE, func_key = FALSE;
     ssize_t numreplaced;
     int i;
 
@@ -942,7 +931,7 @@ void do_replace(void)
     /* If answer is not "", add answer to the search history list and
      * copy answer into last_search. */
     if (answer[0] != '\0') {
-#ifndef NANO_TINY
+#ifndef DISABLE_HISTORIES
 	update_history(&search_history, answer);
 #endif
 	last_search = mallocstrcpy(last_search, answer);
@@ -954,14 +943,14 @@ void do_replace(void)
 #ifndef DISABLE_TABCOMP
 	TRUE,
 #endif
-	MREPLACE2, last_replace,
-	&meta_key, &func_key,
-#ifndef NANO_TINY
+	MREPLACEWITH, last_replace,
+#ifndef DISABLE_HISTORIES
 	&replace_history,
 #endif
+	/* TRANSLATORS: This is a prompt. */
 	edit_refresh, _("Replace with"));
 
-#ifndef NANO_TINY
+#ifndef DISABLE_HISTORIES
     /* Add this replace string to the replace history list.  i == 0
      * means that the string is not "". */
     if (i == 0)
@@ -1008,6 +997,19 @@ void do_replace(void)
     search_replace_abort();
 }
 
+/* Go to the specified line and x position. */
+void goto_line_posx(ssize_t line, size_t pos_x)
+{
+    for (openfile->current = openfile->fileage; openfile->current != openfile->filebot &&
+					openfile->current->next != NULL && line > 1; line--)
+	openfile->current = openfile->current->next;
+
+    openfile->current_x = pos_x;
+    openfile->placewewant = xplustabs();
+
+    edit_refresh_needed = TRUE;
+}
+
 /* Go to the specified line and column, or ask for them if interactive
  * is TRUE.  Save the x-coordinate and y-coordinate if save_pos is TRUE.
  * Update the screen afterwards if allow_update is TRUE.  Note that both
@@ -1015,11 +1017,9 @@ void do_replace(void)
 void do_gotolinecolumn(ssize_t line, ssize_t column, bool use_answer,
 	bool interactive, bool save_pos, bool allow_update)
 {
-    bool meta_key = FALSE, func_key = FALSE;
-    const sc *s;
-
     if (interactive) {
 	char *ans = mallocstrcpy(NULL, answer);
+	functionptrtype func;
 
 	/* Ask for the line and column. */
 	int i = do_prompt(FALSE,
@@ -1027,10 +1027,10 @@ void do_gotolinecolumn(ssize_t line, ssize_t column, bool use_answer,
 		TRUE,
 #endif
 		MGOTOLINE, use_answer ? ans : "",
-		&meta_key, &func_key,
-#ifndef NANO_TINY
+#ifndef DISABLE_HISTORIES
 		NULL,
 #endif
+		/* TRANSLATORS: This is a prompt. */
 		edit_refresh, _("Enter line number, column number"));
 
 	free(ans);
@@ -1042,9 +1042,9 @@ void do_gotolinecolumn(ssize_t line, ssize_t column, bool use_answer,
 	    return;
 	}
 
+	func = func_from_key(&i);
 
-	s = get_shortcut(currmenu, &i, &meta_key, &func_key);
-	if (s && s->scfunc ==  GOTOTEXT_MSG) {
+	if (func == gototext_void) {
 	    /* Keep answer up on the statusbar. */
 	    search_init(TRUE, TRUE);
 
@@ -1083,10 +1083,11 @@ void do_gotolinecolumn(ssize_t line, ssize_t column, bool use_answer,
     edit_update(save_pos ? NONE : CENTER);
 
     /* If allow_update is TRUE, update the screen. */
-    if (allow_update)
+    if (allow_update) {
 	edit_refresh();
 
-    display_main_list();
+	display_main_list();
+    }
 }
 
 /* Go to the specified line and column, asking for them beforehand. */
@@ -1290,14 +1291,14 @@ void do_find_bracket(void)
     free(bracket_set);
     free(found_ch);
 }
+#endif /* !NANO_TINY */
 
-#ifdef ENABLE_NANORC
+#ifndef DISABLE_HISTORIES
 /* Indicate whether any of the history lists have changed. */
 bool history_has_changed(void)
 {
     return history_changed;
 }
-#endif
 
 /* Initialize the search and replace history lists. */
 void history_init(void)
@@ -1394,10 +1395,8 @@ void update_history(filestruct **h, const char *s)
     *hbot = (*hbot)->next;
     (*hbot)->data = mallocstrcpy(NULL, "");
 
-#ifdef ENABLE_NANORC
     /* Indicate that the history's been changed. */
     history_changed = TRUE;
-#endif
 
     /* Set the current position in the list to the bottom. */
     *h = *hbot;
@@ -1429,6 +1428,16 @@ char *get_history_newer(filestruct **h)
     *h = (*h)->next;
 
     return (*h)->data;
+}
+
+/* More placeholders. */
+void get_history_newer_void(void)
+{
+    ;
+}
+void get_history_older_void(void)
+{
+    ;
 }
 
 #ifndef DISABLE_TABCOMP
@@ -1486,4 +1495,4 @@ char *get_history_completion(filestruct **h, const char *s, size_t len)
     return (char *)s;
 }
 #endif /* !DISABLE_TABCOMP */
-#endif /* !NANO_TINY */
+#endif /* !DISABLE_HISTORIES */
