@@ -21,6 +21,9 @@ LOCAL_SRC_FILES:= \
 	src/text.c \
 	src/utils.c \
 	src/winio.c
+
+LOCAL_SRC_FILES += src/mblen.c
+
 LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH) \
 	external/libncurses/include

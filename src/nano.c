@@ -33,7 +33,7 @@
 #include <ctype.h>
 #include <locale.h>
 #include <time.h>
-#ifdef ENABLE_UTF8
+#ifdef HAVE_NL_LANGINFO
 #include <langinfo.h>
 #endif
 #include <termios.h>
@@ -42,6 +42,10 @@
 #endif
 #ifndef NANO_TINY
 #include <sys/ioctl.h>
+#endif
+
+#ifndef HAVE_NL_LANGINFO
+#define nl_langinfo(x) "UTF-8"
 #endif
 
 #ifndef DISABLE_MOUSE

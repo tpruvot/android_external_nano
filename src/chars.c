@@ -26,7 +26,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
 #ifdef HAVE_WCHAR_H
 #include <wchar.h>
 #endif
@@ -34,7 +34,14 @@
 #include <wctype.h>
 #endif
 
+#ifdef __BIONIC__
+bool is_valid_unicode(wchar_t wc);
+bool is_cntrl_wchar(wchar_t wc);
+
+static bool use_utf8 = TRUE;
+#else
 static bool use_utf8 = FALSE;
+#endif
 	/* Whether we've enabled UTF-8 support. */
 static const wchar_t bad_wchar = 0xFFFD;
 	/* If we get an invalid multibyte sequence, we treat it as
@@ -76,7 +83,7 @@ bool nisblank(int c)
 }
 #endif
 
-#if !defined(HAVE_ISWBLANK) && defined(ENABLE_UTF8)
+#if !defined(HAVE_ISWBLANK) && (defined(__BIONIC__) || defined(ENABLE_UTF8))
 /* This function is equivalent to iswblank(). */
 bool niswblank(wchar_t wc)
 {
@@ -106,7 +113,7 @@ bool is_alnum_mbchar(const char *c)
 {
     assert(c != NULL);
 
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
     if (use_utf8) {
 	wchar_t wc;
 
@@ -137,6 +144,12 @@ bool is_blank_mbchar(const char *c)
 
 	return iswblank(wc);
     } else
+#elif defined(__BIONIC__)
+    /* no iswblank() so assume not a blank if utf8 */
+    if (use_utf8) {
+	if (parse_mbchar(c, NULL, NULL) != 1)
+	    return false;
+    }
 #endif
 	return isblank((unsigned char)*c);
 }
@@ -164,6 +177,11 @@ bool is_cntrl_wchar(wchar_t wc)
 {
     return (0 <= wc && wc < 32) || (127 <= wc && wc < 160);
 }
+#elif defined(__BIONIC__)
+bool is_cntrl_wchar(wchar_t wc)
+{
+    return (wc < 32) || (127 <= wc && wc < 160);
+}
 #endif
 
 /* This function is equivalent to iscntrl() for multibyte characters,
@@ -173,7 +191,7 @@ bool is_cntrl_mbchar(const char *c)
 {
     assert(c != NULL);
 
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
     if (use_utf8) {
 	wchar_t wc;
 
@@ -193,7 +211,7 @@ bool is_punct_mbchar(const char *c)
 {
     assert(c != NULL);
 
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
     if (use_utf8) {
 	wchar_t wc;
 
@@ -234,7 +252,7 @@ char control_rep(char c)
 	return c + 64;
 }
 
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
 /* c is a wide control character.  It displays as ^@, ^?, or ^[ch],
  * where ch is (c + 64).  We return that wide character. */
 wchar_t control_wrep(wchar_t wc)
@@ -259,7 +277,7 @@ char *control_mbrep(const char *c, char *crep, int *crep_len)
 {
     assert(c != NULL && crep != NULL && crep_len != NULL);
 
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
     if (use_utf8) {
 	wchar_t wc;
 
@@ -279,7 +297,7 @@ char *control_mbrep(const char *c, char *crep, int *crep_len)
 #endif
 	*crep_len = 1;
 	*crep = control_rep(*c);
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
     }
 #endif
 
@@ -311,10 +329,16 @@ char *mbrep(const char *c, char *crep, int *crep_len)
 	    }
 	}
     } else {
+#elif defined(__BIONIC__)
+    if (use_utf8) {
+	// return size in bytes of utf char (0 1 2 3 4)
+	*crep_len = parse_mbchar(c, NULL, NULL);
+	strncpy(crep, c, *crep_len);
+    } else {
 #endif
 	*crep_len = 1;
 	*crep = *c;
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
     }
 #endif
 
@@ -322,6 +346,7 @@ char *mbrep(const char *c, char *crep, int *crep_len)
 }
 
 /* This function is equivalent to wcwidth() for multibyte characters. */
+/* columns needed for an utf-8 character (1 or 2)*/
 int mbwidth(const char *c)
 {
     assert(c != NULL);
@@ -345,6 +370,16 @@ int mbwidth(const char *c)
 
 	return width;
     } else
+#elif defined(__BIONIC__)
+    if ((*c & 0xF0) == 0xF0)
+	return 2; // start of 4 chars
+    else if ((*c & 0xF0) == 0xE0)
+	return 2; // start of 3 chars
+    else if ((*c & 0xF0) == 0xC0)
+	return 1; // start of 2 chars
+    else if ((*c & 0xC0) == 0x80)
+	return 0; // utf hidden part
+    else
 #endif
 	return 1;
 }
@@ -353,7 +388,7 @@ int mbwidth(const char *c)
 int mb_cur_max(void)
 {
     return
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
 	use_utf8 ? MB_CUR_MAX :
 #endif
 	1;
@@ -381,10 +416,15 @@ char *make_mbchar(long chr, int *chr_mb_len)
 	    *chr_mb_len = 0;
 	}
     } else {
+#elif defined(__BIONIC__)
+    if (use_utf8) {
+	chr_mb = charalloc(4);
+	*chr_mb_len = wctomb(chr_mb, (wchar_t)chr);
+    } else {
 #endif
 	*chr_mb_len = 1;
 	chr_mb = mallocstrncpy(NULL, (char *)&chr, 1);
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
     }
 #endif
 
@@ -454,9 +494,19 @@ int parse_mbchar(const char *buf, char *chr, size_t *col)
 	/* Get the number of bytes in the byte character. */
 	buf_mb_len = 1;
 
+#ifdef __BIONIC__
+	buf_mb_len = mblen(buf, 4);
+
+	if (use_utf8 && chr != NULL) {
+	    int i;
+	    for (i = 0; i < buf_mb_len; i++)
+		chr[i] = buf[i];
+	}
+#else
 	/* Save the byte character in chr. */
 	if (chr != NULL)
 	    *chr = *buf;
+#endif
 
 	if (col != NULL) {
 	    /* If we have a tab, get its width in columns using the
@@ -467,6 +517,14 @@ int parse_mbchar(const char *buf, char *chr, size_t *col)
 	     * one column for the "^" that will be displayed in front of
 	     * it, and one column for its visible equivalent as returned
 	     * by control_mbrep(). */
+#ifdef __BIONIC__
+	    else if ((*buf & 0xE0) == 0xE0)
+		(*col) += 2; // Chinese... 3 and 4 bytes wide chars
+	    else if ((*buf & 0xC0) == 0xC0)
+		(*col)++; // start of all mb utf8 char
+	    else if ((*buf & 0xC0) == 0x80)
+		buf_mb_len = 0; // dont inc. *col on ext utf data
+#endif
 	    else if (is_cntrl_char((unsigned char)*buf))
 		*col += 2;
 	    /* If we have a normal character, it's one column wide. */
@@ -743,6 +801,25 @@ char *mbrevstrcasestr(const char *haystack, const char *needle, const
 }
 #endif /* !NANO_TINY */
 
+/* This function is equivalent to strlen() for utf-8 strings. */
+size_t u8_strnlen(const char *buf, size_t maxlen)
+{
+    size_t len = 0;
+    const char *s = buf;
+
+    while (*s) {
+	if (len >= maxlen) break;
+	len += ((*s++ & 0xC0) != 0x80);
+    }
+    return len;
+}
+
+/* This function is equivalent to strlen() for utf-8 strings. */
+size_t u8_strlen(const char *buf)
+{
+    return u8_strnlen(buf, (size_t)-1);
+}
+
 /* This function is equivalent to strlen() for multibyte strings. */
 size_t mbstrlen(const char *s)
 {
@@ -769,7 +846,7 @@ size_t mbstrnlen(const char *s, size_t maxlen)
 {
     assert(s != NULL);
 
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
     if (use_utf8) {
 	size_t n = 0;
 
@@ -836,7 +913,7 @@ char *mbstrpbrk(const char *s, const char *accept)
 {
     assert(s != NULL && accept != NULL);
 
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
     if (use_utf8) {
 	for (; *s != '\0'; s += move_mbright(s, 0)) {
 	    if (mbstrchr(accept, s) != NULL)
@@ -875,7 +952,7 @@ char *mbrevstrpbrk(const char *s, const char *accept, const char
 {
     assert(s != NULL && accept != NULL && rev_start != NULL);
 
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
     if (use_utf8) {
 	bool begin_line = FALSE;
 
@@ -920,7 +997,7 @@ bool has_blank_mbchars(const char *s)
 {
     assert(s != NULL);
 
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
     if (use_utf8) {
 	bool retval = FALSE;
 	char *chr_mb = charalloc(MB_CUR_MAX);
@@ -951,6 +1028,14 @@ bool is_valid_unicode(wchar_t wc)
 	wc) && (wc <= 0xFDCF || 0xFDF0 <= wc) && ((wc & 0xFFFF) <=
 	0xFFFD));
 }
+#elif defined(__BIONIC__)
+bool is_valid_unicode(wchar_t wc)
+{
+	/* bionic wchar_t are simple char !
+	 * but our mbtowc cast it in a 32bit int
+	 */
+	return true;
+}
 #endif
 
 #ifndef DISABLE_NANORC
@@ -963,6 +1048,8 @@ bool is_valid_mbstring(const char *s)
     return
 #ifdef ENABLE_UTF8
 	use_utf8 ? (mbstowcs(NULL, s, 0) != (size_t)-1) :
+#elif defined(__BIONIC__)
+	use_utf8 ? (mblen(s, 4) != 0) :
 #endif
 	TRUE;
 }

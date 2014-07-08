@@ -38,7 +38,7 @@
 #define ENABLE_COLOR 1
 
 /* Define this to enable multiple file buffers. */
-/* #undef ENABLE_MULTIBUFFER */
+#define ENABLE_MULTIBUFFER 1
 
 /* Define this to use .nanorc files. */
 #define ENABLE_NANORC 1
@@ -50,7 +50,7 @@
 /* Define this if your system has sufficient UTF-8 support (a wide curses
    library, iswalnum(), iswpunct(), iswblank() or iswspace(), nl_langinfo,
    mblen(), mbstowcs(), mbtowc(), wctomb(), and wcwidth()). */
-/* #undef ENABLE_UTF8 */
+//#define ENABLE_UTF8 1
 
 /* Define if the system supports GNU-style word boundaries in regexes. */
 #define GNU_WORDBOUNDS 1
@@ -66,10 +66,10 @@
 /* #undef HAVE_DOPRNT */
 
 /* Define to 1 if you have the `getdelim' function. */
-/* #undef HAVE_GETDELIM */
+#define HAVE_GETDELIM 1
 
 /* Define to 1 if you have the `getline' function. */
-/* #undef HAVE_GETLINE */
+#define HAVE_GETLINE 1
 
 /* Define to 1 if you have the <getopt.h> header file. */
 #define HAVE_GETOPT_H 1
@@ -108,13 +108,13 @@
 #define HAVE_LIMITS_H 1
 
 /* Define to 1 if you have the `mblen' function. */
-/* #undef HAVE_MBLEN */
+#define HAVE_MBLEN 1
 
 /* Define to 1 if you have the `mbstowcs' function. */
 /* #undef HAVE_MBSTOWCS */
 
 /* Define to 1 if you have the `mbtowc' function. */
-/* #undef HAVE_MBTOWC */
+#define HAVE_MBTOWC 1
 
 /* Define to 1 if you have the <memory.h> header file. */
 #define HAVE_MEMORY_H 1
@@ -180,19 +180,19 @@
 #define HAVE_WCHAR_H 1
 
 /* Define to 1 if you have the `wctomb' function. */
-/* #undef HAVE_WCTOMB */
+#define HAVE_WCTOMB 1
 
 /* Define to 1 if you have the <wctype.h> header file. */
 #define HAVE_WCTYPE_H 1
 
 /* Define to 1 if you have the `wcwidth' function. */
-/* #undef HAVE_WCWIDTH */
+#define HAVE_WCWIDTH 1
 
 /* Define this to enable extra stuff. */
-/* #undef NANO_EXTRA */
+//#define NANO_EXTRA 1 /* adds 4K (credits) */
 
 /* Define this to make the nano executable as small as possible. */
-#define NANO_TINY 1
+//#define NANO_TINY 1 /* 65KB vs 88K on arm */
 
 /* Shut up assert warnings :-) */
 #define NDEBUG 1

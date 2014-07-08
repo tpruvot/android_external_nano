@@ -1363,7 +1363,7 @@ int get_byte_kbinput(int kbinput)
     return retval;
 }
 
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
 /* If the character in kbinput is a valid hexadecimal digit, multiply it
  * by factor and add the result to uni. */
 long add_unicode_digit(int kbinput, long factor, long *uni)
@@ -1559,7 +1559,7 @@ int *parse_verbatim_kbinput(WINDOW *win, size_t *kbinput_len)
     while ((kbinput = get_input(win, 1)) == NULL)
 	;
 
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
     if (using_utf8()) {
 	/* Check whether the first keystroke is a valid hexadecimal
 	 * digit. */
@@ -1962,7 +1962,7 @@ char *display_string(const char *buf, size_t start_col, size_t len, bool
 		start_index += buf_mb_len;
 	    }
 	}
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
 	else if (using_utf8() && mbwidth(buf_mb) == 2) {
 	    if (column >= start_col) {
 		converted[index++] = ' ';
