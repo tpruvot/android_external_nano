@@ -569,7 +569,7 @@ void do_down(
 	)
 {
 #ifndef NANO_TINY
-    int amount = 0, enough;
+    size_t amount = 0, enough;
     filestruct *topline;
 #endif
 
@@ -620,7 +620,7 @@ void do_down(
 #ifndef NANO_TINY
 		(ISSET(SMOOTH_SCROLL) || scroll_only) ? amount :
 #endif
-		editwinrows / 2 + 1);
+		(size_t) editwinrows / 2 + 1);
 	edit_refresh_needed = TRUE;
     }
     /* If we're above the last line of the edit window, update the line

@@ -2081,17 +2081,17 @@ void titlebar(const char *path)
 {
     int space = COLS;
 	/* The space we have available for display. */
-    size_t verlen = strlenpt(PACKAGE_STRING) + 1;
+    int verlen = strlenpt(PACKAGE_STRING) + 1;
 	/* The length of the version message in columns, plus one for
 	 * padding. */
     const char *prefix;
 	/* "DIR:", "File:", or "New Buffer".  Goes before filename. */
-    size_t prefixlen;
+    int prefixlen;
 	/* The length of the prefix in columns, plus one for padding. */
     const char *state;
 	/* "Modified", "View", or "".  Shows the state of this
 	 * buffer. */
-    size_t statelen = 0;
+    int statelen = 0;
 	/* The length of the state in columns, or the length of
 	 * "Modified" if the state is blank and we're not in the file
 	 * browser. */
@@ -2182,7 +2182,7 @@ void titlebar(const char *path)
 	/* space is now the room we have for the filename. */
 
     if (!newfie) {
-	size_t lenpt = strlenpt(path), start_col;
+	int lenpt = strlenpt(path), start_col;
 
 	/* Don't set dots to TRUE if we have fewer than eight columns
 	 * (i.e. one column for padding, plus seven columns for a

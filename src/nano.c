@@ -730,8 +730,7 @@ void die_save_file(const char *die_filename
 	int shush;
 	shush = chmod(retval, die_stat->st_mode);
 	shush = chown(retval, die_stat->st_uid, die_stat->st_gid);
-	if (shush)
-	    ;
+	if (shush) {}
     }
 #endif
 
@@ -1796,7 +1795,7 @@ int do_mouse(void)
 	if (ISSET(SOFTWRAP)) {
 	    size_t i = 0;
 	    for (openfile->current = openfile->edittop;
-		 openfile->current->next && i < mouse_y;
+		 openfile->current->next && i < (size_t) mouse_y;
 		 openfile->current = openfile->current->next, i++) {
 		openfile->current_y = i;
 		i += strlenpt(openfile->current->data) / COLS;
@@ -1807,7 +1806,7 @@ int do_mouse(void)
 	    fprintf(stderr, "            openfile->current->data = \"%s\"\n", openfile->current->data);
 #endif
 
-	    if (i > mouse_y) {
+	    if (i > (size_t) mouse_y) {
 		openfile->current = openfile->current->prev;
 		openfile->current_x = actual_x(openfile->current->data, mouse_x + (mouse_y - openfile->current_y) * COLS);
 #ifdef DEBUG
@@ -2002,7 +2001,7 @@ void do_output(char *output, size_t output_len, bool allow_cntrls)
 #endif
 
     char *char_buf = charalloc(mb_cur_max());
-    int char_buf_len;
+    ssize_t char_buf_len;
 
     assert(openfile->current != NULL && openfile->current->data != NULL);
 

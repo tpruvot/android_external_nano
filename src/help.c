@@ -105,7 +105,7 @@ void do_help(void (*refresh_func)(void))
 		    ptr++;
 	    }
 
-	    for (i = 0; i < editwinrows && *ptr != '\0'; i++) {
+	    for (i = 0; i < (size_t) editwinrows && *ptr != '\0'; i++) {
 		size_t j = help_line_len(ptr);
 
 		mvwaddnstr(edit, i, 0, ptr, j);
@@ -134,7 +134,7 @@ void do_help(void (*refresh_func)(void))
 	if (func == total_refresh) {
 	    total_redraw();
 	} else if (func == do_page_up) {
-	    if (line > editwinrows - 2)
+	    if (line > (size_t) editwinrows - 2)
 		line -= editwinrows - 2;
 	    else
 		line = 0;
@@ -497,7 +497,7 @@ size_t help_line_len(const char *ptr)
     /* If the entire line doesn't go more than one column beyond where
      * we tried to break it, we should display it as-is.  Otherwise, we
      * should display it only up to the break. */
-    if (strnlenpt(ptr, retval) > help_cols + 1)
+    if (strnlenpt(ptr, retval) > (size_t) help_cols + 1)
 	retval = retval_save;
 
     return retval;

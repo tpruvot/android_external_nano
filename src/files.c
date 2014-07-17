@@ -2832,16 +2832,16 @@ char *input_tab(char *buf, bool allow_files, size_t *place, bool
 	    for (match = 0; match < num_matches; match++) {
 		common_len = strnlenpt(matches[match], COLS - 1);
 
-		if (common_len > COLS - 1) {
+		if (common_len > (size_t) COLS - 1) {
 		    longest_name = COLS - 1;
 		    break;
 		}
 
-		if (common_len > longest_name)
+		if (common_len > (size_t) longest_name)
 		    longest_name = common_len;
 	    }
 
-	    assert(longest_name <= COLS - 1);
+	    assert(longest_name <= (size_t) COLS - 1);
 
 	    /* Each column will be (longest_name + 2) columns wide, i.e.
 	     * two spaces between columns, except that there will be
@@ -2864,7 +2864,7 @@ char *input_tab(char *buf, bool allow_files, size_t *place, bool
 
 		if (match % ncols == 0 &&
 			editline == editwinrows - 1 &&
-			num_matches - match > ncols) {
+			num_matches - match > (size_t) ncols) {
 		    waddstr(edit, _("(more)"));
 		    break;
 		}

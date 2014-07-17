@@ -194,7 +194,7 @@ void sunder(char *str)
 ssize_t ngetdelim(char **lineptr, size_t *n, int delim, FILE *stream)
 {
     size_t indx = 0;
-    int c;
+    size_t c;
 
     /* Sanity checks. */
     if (lineptr == NULL || n == NULL || stream == NULL ||
@@ -464,7 +464,7 @@ char *mallocstrassn(char *dest, char *src)
  * get_page_start(column) < COLS). */
 size_t get_page_start(size_t column)
 {
-    if (column == 0 || column < COLS - 1)
+    if (column == 0 || column < (size_t) COLS - 1)
 	return 0;
     else if (COLS > 8)
 	return column - 7 - (column - 7) % (COLS - 8);
@@ -496,7 +496,7 @@ size_t actual_x(const char *s, size_t column)
     assert(s != NULL);
 
     while (*s != '\0') {
-	int s_len = parse_mbchar(s, NULL, &len);
+	size_t s_len = parse_mbchar(s, NULL, &len);
 
 	if (len > column)
 	    break;
@@ -522,7 +522,7 @@ size_t strnlenpt(const char *s, size_t maxlen)
     assert(s != NULL);
 
     while (*s != '\0') {
-	int s_len = parse_mbchar(s, NULL, &len);
+	size_t s_len = parse_mbchar(s, NULL, &len);
 
 	s += s_len;
 

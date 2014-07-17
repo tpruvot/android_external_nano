@@ -242,7 +242,7 @@ int do_statusbar_mouse(void)
 	start_col = strlenpt(prompt) + 2;
 
 	/* Move to where the click occurred. */
-	if (mouse_x >= start_col && mouse_y == 0) {
+	if (mouse_x >= (int) start_col && mouse_y == 0) {
 	    size_t pww_save = statusbar_pww;
 
 	    statusbar_x = actual_x(answer,
@@ -652,7 +652,7 @@ size_t statusbar_xplustabs(void)
  * get_statusbar_page_start(column) < COLS). */
 size_t get_statusbar_page_start(size_t start_col, size_t column)
 {
-    if (column == start_col || column < COLS - 1)
+    if (column == start_col || column < (size_t) COLS - 1)
 	return 0;
     else
 	return column - start_col - (column - start_col) % (COLS -
