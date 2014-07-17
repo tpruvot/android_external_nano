@@ -923,7 +923,7 @@ enum
 #define CHARS_FROM_EOL 8
 
 /* The default width of a tab in spaces. */
-#define WIDTH_OF_TAB 8
+#define WIDTH_OF_TAB 4
 
 /* The maximum number of search/replace history strings saved, not
  * counting the blank lines at their ends. */
