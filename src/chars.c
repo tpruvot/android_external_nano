@@ -44,11 +44,13 @@ bool is_valid_unicode(wchar_t wc);
 bool is_cntrl_wchar(wchar_t wc);
 
 static bool use_utf8 = TRUE;
+#define BAD_WCHAR 0xEFBFBD;
 #else
 static bool use_utf8 = FALSE;
+#define BAD_WCHAR 0xFFFD
 #endif
 	/* Whether we've enabled UTF-8 support. */
-static const wchar_t bad_wchar = 0xFFFD;
+static const wchar_t bad_wchar = BAD_WCHAR;
 	/* If we get an invalid multibyte sequence, we treat it as
 	 * Unicode FFFD (Replacement Character), unless we're searching
 	 * for a match to it. */
@@ -339,6 +341,7 @@ char *mbrep(const char *c, char *crep, int *crep_len)
 	// return size in bytes of utf char (0 1 2 3 4)
 	*crep_len = parse_mbchar(c, NULL, NULL);
 	strncpy(crep, c, *crep_len);
+	crep[*crep_len] = '\0';
     } else {
 #endif
 	*crep_len = 1;
@@ -376,12 +379,13 @@ int mbwidth(const char *c)
 	return width;
     } else
 #elif defined(__BIONIC__)
+    /* Assume big UTF series as large chars (2 columns) */
     if ((*c & 0xF0) == 0xF0)
-	return 2; // start of 4 chars
+	return 2; // start of 4 bytes series
     else if ((*c & 0xF0) == 0xE0)
-	return 2; // start of 3 chars
+	return 2; // start of 3 bytes
     else if ((*c & 0xF0) == 0xC0)
-	return 1; // start of 2 chars
+	return 1; // start of 2 bytes
     else if ((*c & 0xC0) == 0x80)
 	return 0; // utf hidden part
     else
@@ -423,7 +427,7 @@ char *make_mbchar(long chr, int *chr_mb_len)
     } else {
 #elif defined(__BIONIC__)
     if (use_utf8) {
-	chr_mb = charalloc(4);
+	chr_mb = charalloc(MB_CUR_MAX + 1);
 	*chr_mb_len = wctomb(chr_mb, (wchar_t)chr);
     } else {
 #endif
@@ -500,7 +504,7 @@ int parse_mbchar(const char *buf, char *chr, size_t *col)
 	buf_mb_len = 1;
 
 #ifdef __BIONIC__
-	buf_mb_len = mblen(buf, 4);
+	buf_mb_len = mblen(buf, MB_CUR_MAX);
 
 	if (use_utf8 && chr != NULL) {
 	    int i;
@@ -806,25 +810,6 @@ char *mbrevstrcasestr(const char *haystack, const char *needle, const
 }
 #endif /* !NANO_TINY */
 
-/* This function is equivalent to strlen() for utf-8 strings. */
-size_t u8_strnlen(const char *buf, size_t maxlen)
-{
-    size_t len = 0;
-    const char *s = buf;
-
-    while (*s) {
-	if (len >= maxlen) break;
-	len += ((*s++ & 0xC0) != 0x80);
-    }
-    return len;
-}
-
-/* This function is equivalent to strlen() for utf-8 strings. */
-size_t u8_strlen(const char *buf)
-{
-    return u8_strnlen(buf, (size_t)-1);
-}
-
 /* This function is equivalent to strlen() for multibyte strings. */
 size_t mbstrlen(const char *s)
 {
@@ -1054,7 +1039,7 @@ bool is_valid_mbstring(const char *s)
 #ifdef ENABLE_UTF8
 	use_utf8 ? (mbstowcs(NULL, s, 0) != (size_t)-1) :
 #elif defined(__BIONIC__)
-	use_utf8 ? (mblen(s, 4) != 0) :
+	use_utf8 ? (mblen(s, MB_CUR_MAX) != 0) :
 #endif
 	TRUE;
 }

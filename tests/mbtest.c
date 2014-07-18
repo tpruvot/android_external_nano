@@ -6,6 +6,10 @@
 #include <wchar.h>
 #include <locale.h>
 
+/* from mblen.c */
+size_t u8_strlen(char *buf);
+size_t u8_strnlen(char *buf, size_t maxlen);
+
 void print_mb(const char* ptr)
 {
 	wchar_t wc;
@@ -21,25 +25,6 @@ void print_mb(const char* ptr)
 		ptr += len;
 	}
 	printf("\n");
-}
-
-size_t u8_strlen(char *buf)
-{
-	size_t len = 0; char *s = buf;
-	while (*s)
-		len += ((*s++ & 0xC0) != 0x80);
-	return len;
-}
-
-/* This function is equivalent to strlen() for utf-8 strings. */
-size_t u8_strnlen(char *buf, size_t maxlen)
-{
-	size_t len = 0; char *s = buf;
-	while (*s) {
-		if (len >= maxlen) break;
-		len += ((*s++ & 0xC0) != 0x80);
-	}
-	return len;
 }
 
 #define BUFFER_SIZE 50
@@ -76,7 +61,7 @@ int main()
 	len = mbrlen("\xe6\x9e\x90", MB_CUR_MAX, &mbs);
 	printf("bionic mbrlen(\xe6\x9e\x90) = %d!\n", len);
 
-	len = mbtowc(arr,"\xe6\x9e\x90", 3);
+	len = mbtowc(arr,"\xe6\x9e\x90", 3); // linux wc value is 0x6790
 	printf("wide character (%d bytes): %08x\n", len, arr[0]);
 
 	mbrlen(NULL, 0, &mbs);
