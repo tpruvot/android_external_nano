@@ -35,6 +35,11 @@
 #endif
 
 #ifdef __BIONIC__
+
+/* override utf8 max len, if badly set */
+#undef MB_CUR_MAX
+#define MB_CUR_MAX 4
+
 bool is_valid_unicode(wchar_t wc);
 bool is_cntrl_wchar(wchar_t wc);
 

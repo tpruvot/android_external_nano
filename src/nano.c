@@ -2642,7 +2642,7 @@ int main(int argc, char **argv)
      * Quotation Mark) and Unicode 00B7 (Middle Dot).  Otherwise, it's
      * ">" and ".". */
     if (whitespace == NULL) {
-#ifdef ENABLE_UTF8
+#if defined(ENABLE_UTF8) || defined(__BIONIC__)
 	if (using_utf8()) {
 	    whitespace = mallocstrcpy(NULL, "\xC2\xBB\xC2\xB7");
 	    whitespace_len[0] = 2;

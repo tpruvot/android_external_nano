@@ -43,6 +43,8 @@ size_t u8_strnlen(char *buf, size_t maxlen)
 }
 
 #define BUFFER_SIZE 50
+#undef MB_CUR_MAX
+#define MB_CUR_MAX 4
 
 int main()
 {
@@ -69,9 +71,9 @@ int main()
 
 
 	/* test for our mblen.c */
-	len = mblen("\xe6\x9e\x90", 4);
+	len = mblen("\xe6\x9e\x90", MB_CUR_MAX);
 	printf("our mblen(\xe6\x9e\x90) = %d\n", len);
-	len = mbrlen("\xe6\x9e\x90", 4, &mbs);
+	len = mbrlen("\xe6\x9e\x90", MB_CUR_MAX, &mbs);
 	printf("bionic mbrlen(\xe6\x9e\x90) = %d!\n", len);
 
 	len = mbtowc(arr,"\xe6\x9e\x90", 3);
