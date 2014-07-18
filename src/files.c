@@ -2602,6 +2602,7 @@ char **username_tab_completion(const char *buf, size_t *num_matches,
 
     *num_matches = 0;
 
+#ifndef __BIONIC__
     while ((userdata = getpwent()) != NULL) {
 	if (strncmp(userdata->pw_name, buf + 1, buf_len - 1) == 0) {
 	    /* Cool, found a match.  Add it to the list.  This makes a
@@ -2623,6 +2624,7 @@ char **username_tab_completion(const char *buf, size_t *num_matches,
 	}
     }
     endpwent();
+#endif
 
     return matches;
 }
