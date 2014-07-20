@@ -22,7 +22,7 @@ LOCAL_SRC_FILES:= \
 	src/utils.c \
 	src/winio.c
 
-LOCAL_SRC_FILES += src/mblen.c
+LOCAL_SRC_FILES += src/utf8_mbfuncs.c
 
 LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH) \
@@ -31,11 +31,15 @@ LOCAL_CFLAGS += \
 	-DHAVE_CONFIG_H \
 	-DLOCALEDIR=\"/data/locale\" \
 	-DSYSCONFDIR=\"/system/etc/nano\"
-LOCAL_SHARED_LIBRARIES += \
-	libncurses
+
+LOCAL_SHARED_LIBRARIES += libncurses
+
+# LOCAL_SHARED_LIBRARIES += libncursesw
+# LOCAL_CFLAGS += -DUSE_WIDECHAR -DUSE_WIDEC_SUPPORT=1 -D_XOPEN_SOURCE_EXTENDED -Dwint_t=wchar_t
+
 LOCAL_MODULE := nano
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
-LOCAL_MODULE_TAGS := debug
+LOCAL_MODULE_TAGS := optional
 include $(BUILD_EXECUTABLE)
 
 

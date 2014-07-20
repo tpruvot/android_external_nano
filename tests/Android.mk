@@ -7,7 +7,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= mbtest.c
 
-LOCAL_SRC_FILES += ../src/mblen.c
+LOCAL_SRC_FILES += ../src/utf8_mbfuncs.c
 
 LOCAL_C_INCLUDES += \
 	$(LOCAL_PATH)

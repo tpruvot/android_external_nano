@@ -1,31 +1,16 @@
 /**
  * Test for mblen and wcstombs functions
+ * from src/utf8_mbfuncs.c
+ *
+ * tpruvot@github 2014
  */
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
 #include <locale.h>
 
-/* from mblen.c */
 size_t u8_strlen(char *buf);
 size_t u8_strnlen(char *buf, size_t maxlen);
-
-void print_mb(const char* ptr)
-{
-	wchar_t wc;
-	const char* end = ptr + strlen(ptr);
-	mbstate_t state;
-	int len;
-
-	mbrlen(NULL, 0, &state);
-
-	while((len = mbrtowc(&wc, ptr, end - ptr, &state)) > 0) {
-		//printf("Next %d bytes are the character %lc\n", len, wc);
-		printf("%lc", wc);
-		ptr += len;
-	}
-	printf("\n");
-}
 
 #define BUFFER_SIZE 50
 #undef MB_CUR_MAX
@@ -35,12 +20,12 @@ int main()
 {
 	int len, mbl;
 	char *pmb = (char *) malloc(BUFFER_SIZE);
-	char utf[] = "Ôhaï zéro Wörld";
+	char utf[] = "Ôhaï zéro Wörld\0";
 	char *pu = utf;
-	wchar_t pwc[] = L"Ôhaï zéro Wörld";
+	const wchar_t *pwc = L"Ôhaï zéro Wörld"; /* this "L" syntax is not compatible */
 	wchar_t arr[BUFFER_SIZE] = L"\0";
 	wchar_t *p;
-	const wchar_t *cp = pwc;
+	const wchar_t *cp = &arr[0];
 	mbstate_t mbs;
 
 	memset(pmb, 0, BUFFER_SIZE);
@@ -69,25 +54,19 @@ int main()
 	printf("wctomb -> %s (ret=%d)\n", pmb, len);
 	memset(pmb, 0, BUFFER_SIZE);
 
-	printf("Converting to multibyte string with bionic\n");
+	printf("Converting to wchar_t string\n");
+	len = mbstowcs(arr, utf, BUFFER_SIZE);
+	printf("Characters converted %d\n", len);
 
-	mbrlen(NULL, 0, &mbs);
+	len = wcstombs(NULL, cp, BUFFER_SIZE); // len only
+	printf("Converting to multibyte string, need %u bytes\n", len);
 	len = wcsrtombs(pmb, &cp, BUFFER_SIZE, &mbs);
-	printf("Characters converted %d, %s\n", len, utf);
+	printf("Characters converted %d, %s\n", len, pmb);
 
-	print_mb(pmb);
-
-	len = 0;
-	mbrlen(NULL, 0, &mbs); p = arr;
-	while((mbl = mbtowc(p, pu, len)) > 0) {
-		pu+=mbl; len++; p++;
-	}
-	printf("wide character strdata (%d): %ls\n", len, arr);
-
-	printf("Hex value of first multibyte character: %04x\n", *pmb);
+	printf("Hex value of first multibyte character: %02x%02x\n", pmb[0], pmb[1]);
 
 	len = mblen(pmb, MB_CUR_MAX);
-	printf("Length in bytes of multibyte character %04x: %u\n", *pmb, len);
+	printf("Length in bytes of first multibyte character: %u\n", len);
 
 	free(pmb);
 
